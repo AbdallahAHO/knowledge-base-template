@@ -3,6 +3,8 @@
   "kbHome": ".",
   "name": "<kb-name>",
   "remote": "<owner>/<repo>",
+  "description": "<one-line description of what this KB covers>",
+  "topics": ["<topic>", "<alias>", "<domain keyword>"],
   "defaults": {
     "watermarkFile": ".state.json",
     "contextFile": "CONTEXT.md",

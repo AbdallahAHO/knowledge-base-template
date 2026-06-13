@@ -38,6 +38,8 @@ const configFromAnswers = (a) => ({
   kbHome: '.',
   name: a.kbName,
   remote: `${a.owner}/${a.repo}`,
+  description: a.description || '',
+  topics: a.topics || [],
   defaults: { watermarkFile: '.state.json', contextFile: 'CONTEXT.md', indexFile: 'kb.index.json' },
   products: (a.products || []).map((p) => ({
     key: p.key,
@@ -55,7 +57,14 @@ const configFromAnswers = (a) => ({
 const upsertProducts = (base, incoming) => {
   const byKey = new Map(base.products.map((p) => [p.key, p]));
   for (const p of incoming.products) byKey.set(p.key, p);
-  return { ...base, name: incoming.name || base.name, remote: incoming.remote || base.remote, products: [...byKey.values()] };
+  return {
+    ...base,
+    name: incoming.name || base.name,
+    remote: incoming.remote || base.remote,
+    description: incoming.description || base.description,
+    topics: incoming.topics?.length ? incoming.topics : base.topics,
+    products: [...byKey.values()],
+  };
 };
 
 // ---- resolve config ----

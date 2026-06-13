@@ -1,38 +1,28 @@
 #!/usr/bin/env bash
-# Install the generic /kb bridge skill globally (Claude + Codex) and register this KB.
+# Install the generic /kb bridge skill globally (Claude + Codex) and register this KB in the
+# multi-KB manifest (~/.config/kb/registry.json).
 #
-# The global /kb skill is installed once and serves ALL knowledge bases via the registry at
-# ~/.config/kb/registry.json. Re-running refreshes the skill and upserts this KB.
+# The global /kb skill is installed once and serves ALL knowledge bases via the manifest.
+# Re-running refreshes the skill and upserts this KB's manifest entry (derived from kb.config.json).
 #
-# Usage: bash scripts/wire-global.sh <kb_abs_path> <kb_name> [<kb_remote>]
+# Usage: bash scripts/wire-global.sh <kb_abs_path> [<kb_name>] [<kb_remote>]
+#   (name/remote are optional — they're read from <kb_abs_path>/kb.config.json)
 set -euo pipefail
 
-KB_PATH="${1:?usage: wire-global.sh <kb_abs_path> <kb_name> [<kb_remote>]}"
-KB_NAME="${2:?missing kb name}"
-KB_REMOTE="${3:-}"
+KB_PATH="${1:?usage: wire-global.sh <kb_abs_path> [<kb_name>] [<kb_remote>]}"
 SKILL_SRC="$KB_PATH/.claude/skills/kb"
 
 [ -d "$SKILL_SRC" ] || { echo "no /kb skill at $SKILL_SRC" >&2; exit 1; }
+[ -f "$KB_PATH/kb.config.json" ] || { echo "no kb.config.json at $KB_PATH (run setup/scaffold first)" >&2; exit 1; }
 
 # 1. Install /kb globally as a real copy (independent of any single KB, so a deleted KB never
-#    leaves a dangling skill). The SKILL.md resolves the KB path at runtime via the registry.
+#    leaves a dangling skill). The skill resolves KB paths at runtime via the manifest.
 mkdir -p "$HOME/.claude/skills" "$HOME/.codex/skills/kb"
 rm -rf "$HOME/.claude/skills/kb"          # safe: removes a prior symlink or our prior copy
 cp -R "$SKILL_SRC" "$HOME/.claude/skills/kb"
 ln -sfn "$HOME/.claude/skills/kb/SKILL.md" "$HOME/.codex/skills/kb/SKILL.md"
 
-# 2. Register this KB in ~/.config/kb/registry.json
-REG_DIR="$HOME/.config/kb"; REG="$REG_DIR/registry.json"
-mkdir -p "$REG_DIR"
-node -e '
-const fs=require("fs");
-const [reg,name,path,remote]=process.argv.slice(1);
-let r={knowledgeBases:[]};
-try{r=JSON.parse(fs.readFileSync(reg,"utf8"));}catch{}
-r.knowledgeBases=(r.knowledgeBases||[]).filter(k=>k.name!==name);
-r.knowledgeBases.push({name,path,remote:remote||null});
-fs.writeFileSync(reg,JSON.stringify(r,null,2)+"\n");
-console.log("registry:",reg,"->",r.knowledgeBases.length,"KB(s)");
-' "$REG" "$KB_NAME" "$KB_PATH" "$KB_REMOTE"
+# 2. Register this KB in the manifest (derives name/description/topics/products from kb.config.json)
+node "$HOME/.claude/skills/kb/scripts/manifest.mjs" upsert "$KB_PATH"
 
-echo "Wired /kb globally (Claude + Codex) and registered '$KB_NAME' -> $KB_PATH"
+echo "Wired /kb globally (Claude + Codex)."

@@ -4,9 +4,10 @@ description: >-
   Bridge between the repo you're working in and a centralized, git-based knowledge base.
   Use when the user types /kb, or wants to look up past decisions / ADRs / notes / reference
   context for the product they're working on, capture a decision or follow-up into the KB,
-  or run a deep git/PR sweep to refresh a product's KB section. Config-driven and registry-aware
-  (supports multiple KBs). Reads the current conversation and light repo signals; writes ONLY to
-  the centralized KB repo, never into the working repo.
+  or run a deep git/PR sweep to refresh a product's KB section. Config-driven and registry-aware:
+  supports multiple KBs via a manifest (use `/kb @name` to target one; `/kb list` / `/kb scan` to
+  manage them). Reads the current conversation and light repo signals; writes ONLY to the centralized
+  KB repo, never into the working repo.
 ---
 
 # kb — knowledge-base bridge
@@ -25,17 +26,35 @@ from config, so it works for any KB created from the template.
 4. **Keep the index fresh.** After any write, rebuild `kb.index.json`.
 5. **Honor the host's attribution rules** (default: no AI attribution in files or commits).
 
-## Step 0 — resolve the KB and the product
+## Step 0 — resolve the KB and the product (resolution ladder)
 
-1. **Find candidate KBs:** read `~/.config/kb/registry.json` (`knowledgeBases: [{name, path, remote}]`).
-   Honor a `$KB_HOME` override if set. If the registry is missing/empty, tell the user to run
-   `/kb-setup` in a KB clone (or set `$KB_HOME`).
-2. **Pick the KB + product:** for each registered KB, read `<path>/kb.config.json` and match the
-   working repo against each product's `repoMatch` (git `origin` remote → `remotes`; cwd folder →
-   `folderNames`; cwd path → `pathContains`). Choose the matching `{kb, product}`. If several match,
-   ask. If none match but exactly one KB exists, use it and ask which product (or offer to add one).
-3. **Sync:** `git -C <kbPath> pull --ff-only`.
-4. **Orient:** read `<kbPath>/<section>/CONTEXT.md` and `<kbPath>/kb.index.json` before acting.
+The manifest at `~/.config/kb/registry.json` (override `$KB_REGISTRY`) lists every KB on this machine.
+Resolve in order:
+
+1. **Explicit override.** If the user wrote `/kb @<name> …`, target that KB. A `$KB_HOME` env var also
+   forces a specific KB path. If the manifest is missing/empty, run
+   `node ~/.claude/skills/kb/scripts/manifest.mjs scan` (or have the user run `/kb-setup`).
+2. **Repo match (deterministic).** Run `node ~/.claude/skills/kb/scripts/manifest.mjs resolve "$PWD"`.
+   If it returns exactly one `matches[]` entry, use that `{kb, product}`.
+3. **Topic match.** No repo match (general question / unrelated dir) → rank the `knowledgeBases[]`
+   from the resolve output by their `description` + `topics` against the conversation. One clearly
+   best → use it; otherwise →
+4. **Ask.** Show an AskUserQuestion picker of candidate KBs (`name — description`). If only one KB
+   exists, just use it (confirm the product if ambiguous).
+
+Then **sync** (`git -C <kbPath> pull --ff-only`) and **orient** (read `<kbPath>/<section>/CONTEXT.md`
+and `<kbPath>/kb.index.json`) before acting.
+
+## Admin & discovery
+
+- **`/kb list`** — `node ~/.claude/skills/kb/scripts/manifest.mjs list`; also report which KB resolves
+  for the current dir (`… resolve "$PWD"`).
+- **`/kb scan`** — discover KBs on disk and (re)register them (new machine / cloud agent):
+  `node ~/.claude/skills/kb/scripts/manifest.mjs scan`. Roots default to `~/Developer` + cwd; override
+  with args or `$KB_SCAN_ROOTS`.
+- **`/kb @<name> …`** — force a specific KB for any mode (read/capture/sweep).
+- After any **capture/sweep**, refresh that KB's cached manifest fields:
+  `node ~/.claude/skills/kb/scripts/manifest.mjs upsert <kbPath>`.
 
 ## Mode: read / bridge  (`/kb`, or a question)
 

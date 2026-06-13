@@ -29,9 +29,11 @@ for crisp choices; ask in prose when free-text is needed (names, repo slugs, pat
 only ask what you can't infer; confirm anything ambiguous.
 
 1. **KB identity & destination** —
-   - `kbName` (short slug, e.g. the org/family name).
+   - `kbName` (short slug, e.g. the org/family name) — also the `@target` for `/kb @name`.
    - GitHub `owner/repo` for the KB (recommend a dedicated repo, e.g. `<owner>/knowledge-base`).
    - Visibility: **private** (recommended) or public.
+   - `description` (one line) + `topics` (aliases / domain keywords) — stored in `kb.config.json` and
+     cached in the manifest so `/kb` can pick the right KB by topic when you're not inside a known repo.
 2. **First product** (the KB can hold many; start with one) —
    - `key` (kebab slug, e.g. `app`), `name` (human-readable).
    - `sourceRepo` — the GitHub slug the KB documents (e.g. `<owner>/<repo>`). Used by `/kb sweep`.
@@ -51,7 +53,7 @@ Restate the full plan in 3–5 lines and get a final go-ahead before doing anyth
    ```json
    {
      "kbName": "<slug>", "owner": "<owner>", "repo": "<repo>", "visibility": "private",
-     "description": "<one line>",
+     "description": "<one line>", "topics": ["<topic>", "<alias>"],
      "products": [{ "key": "<key>", "name": "<name>", "sourceRepo": "<owner>/<repo>",
                     "sourceLocalPath": "<abs path>" }],
      "attribution": "none"
@@ -73,8 +75,9 @@ Restate the full plan in 3–5 lines and get a final go-ahead before doing anyth
    ```
    If the SSH push fails (locked agent): `git remote set-url origin https://github.com/<owner>/<repo>.git`
    then `gh auth setup-git && git push -u origin main`.
-5. **Wire globally** (if chosen): `bash scripts/wire-global.sh "$PWD" "<kbName>" "<owner>/<repo>"` —
-   installs `/kb` into Claude + Codex and upserts `~/.config/kb/registry.json`.
+5. **Wire globally** (if chosen): `bash scripts/wire-global.sh "$PWD"` — installs `/kb` into Claude +
+   Codex and upserts this KB into the manifest `~/.config/kb/registry.json` (name / description /
+   topics / products are derived from `kb.config.json`).
 6. **Optional first sweep:** if the user chose to populate now, invoke the `kb` skill's sweep mode for
    the first product (`/kb sweep <key>`).
 7. **Explain how it works** — print a short summary: where the KB lives, the taxonomy

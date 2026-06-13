@@ -43,6 +43,8 @@ const owner = await ask('  GitHub owner (your username or org)');
 const repo = await ask('  GitHub repo name', `${kbName}-knowledge-base`);
 const visibility = (await ask('  Visibility (private/public)', 'private')).toLowerCase().startsWith('pub') ? 'public' : 'private';
 const description = await ask('  One-line description', `${kbName} knowledge base`);
+const topics = (await ask('  Topics / aliases (comma-separated, for /kb disambiguation)', ''))
+  .split(',').map((t) => t.trim()).filter(Boolean);
 
 console.log('\n  First product (you can add more later with /kb-setup):\n');
 const key = await ask('  product key (kebab slug, e.g. web)');
@@ -50,7 +52,7 @@ const name = await ask('  product display name', key);
 const sourceRepo = await ask('  source GitHub repo it documents (owner/repo)');
 const sourceLocalPath = await ask('  source repo local path (absolute)');
 
-const answers = { kbName, owner, repo, visibility, description, products: [{ key, name, sourceRepo, sourceLocalPath }], attribution: 'none' };
+const answers = { kbName, owner, repo, visibility, description, topics, products: [{ key, name, sourceRepo, sourceLocalPath }], attribution: 'none' };
 
 console.log('\n  Plan');
 console.log('  ────');

@@ -57,7 +57,8 @@ Two hard guarantees make this safe and reliable:
 | **`scaffold.mjs`** | `scripts/` | Deterministic file generation from setup answers (idempotent — never clobbers content). |
 | **`wire-global.sh`** | `scripts/` | Installs `/kb` globally (Claude + Codex) and registers the KB. |
 | **`setup.mjs`** | `scripts/` | Terminal equivalent of `/kb-setup` for non-agent use (`npm run setup`). |
-| **`build-index.mjs`** | `.claude/skills/kb/scripts/` | Zero-dependency manifest builder → `kb.index.json`. |
+| **`build-index.mjs`** | `.claude/skills/kb/scripts/` | Zero-dependency index builder → `kb.index.json`. |
+| **`manifest.mjs`** | `.claude/skills/kb/scripts/` | Manages the multi-KB manifest: `upsert` / `scan` / `list` / `resolve`. Travels with the global skill. |
 | **`kb.config.json`** | KB root | Product registry for this KB: each product's key, name, source repo, and `repoMatch` rules. |
 | **`<product>/.state.json`** | per section | The **watermark** — last PR/commit a `sweep` covered. |
 | **`kb.index.json`** | KB root | Generated manifest of all docs (id, type, scope, summary, path). |
@@ -100,20 +101,23 @@ After this, the KB exists on GitHub and `/kb` is available **everywhere**, not j
 
 ## 4. Resolution algorithm (cwd → KB → product)
 
-When `/kb` runs, it must figure out *which KB* and *which product* without you telling it:
+With multiple KBs on one machine, `/kb` figures out *which KB* and *which product* via a **resolution
+ladder** over the manifest (`~/.config/kb/registry.json`):
 
-1. **Candidate KBs.** Read `~/.config/kb/registry.json`. (A `$KB_HOME` env var overrides everything.)
-2. **Match the working repo against each KB's products.** For each KB, read its `kb.config.json` and
-   test the current repo against every product's `repoMatch`:
-   - `remotes` — does `git remote get-url origin` contain this `owner/repo`?
-   - `folderNames` — is the cwd's folder name in this list?
-   - `pathContains` — does the absolute cwd path contain one of these substrings?
-3. **Pick.** Exactly one match → use it. Several → ask. None, but only one KB exists → use that KB and
-   ask which product (or offer add-a-product). None and several KBs → ask.
-4. **Sync + orient.** `git -C <kbPath> pull --ff-only`, then read `<section>/CONTEXT.md` and
-   `kb.index.json` before doing anything.
+1. **Explicit override.** `/kb @<name> …` targets a KB by its manifest `name`; `$KB_HOME` forces a
+   path. (If the manifest is empty → `manifest.mjs scan` rebuilds it.)
+2. **Repo match (deterministic).** `manifest.mjs resolve "$PWD"` tests the working repo against every
+   KB's product `repoMatch` — `remotes` (vs `git remote get-url origin`), `folderNames` (cwd folder),
+   `pathContains` (cwd path). Exactly one `matches[]` → use it.
+3. **Topic match.** No repo match (a general question or unrelated dir) → rank the manifest's
+   `knowledgeBases[]` by `description` + `topics` against the conversation. One clearly best → use it.
+4. **Ask.** Otherwise show a picker of candidate KBs (`name — description`). One KB total → just use it.
 
-This is why setup records `sourceRepo` + `sourceLocalPath`: they become the `repoMatch` signals.
+Then **sync + orient**: `git -C <kbPath> pull --ff-only`, read `<section>/CONTEXT.md` + `kb.index.json`.
+
+This is why setup records `sourceRepo`/`sourceLocalPath` (→ `repoMatch` signals) and `description`/
+`topics` (→ topic-match signals). The manifest is a **cache**: `kb.config.json` stays authoritative,
+and `manifest.mjs upsert`/`scan` rebuild the cache from it (so a new machine self-heals via `/kb scan`).
 
 ---
 
@@ -163,6 +167,8 @@ first.
   "kbHome": ".",
   "name": "acme",
   "remote": "acme/knowledge-base",
+  "description": "Acme product knowledge base.",
+  "topics": ["acme", "web", "billing"],
   "products": [
     {
       "key": "web", "section": "web", "name": "Acme Web App",
@@ -183,10 +189,22 @@ first.
   "lastSwept": { "pr": 412, "commit": "ab12cd3", "date": "2026-06-13", "method": "sweep", "by": "audits/2026-06-q2.md" } }
 ```
 
-### `~/.config/kb/registry.json` (per machine, all KBs)
+### `~/.config/kb/registry.json` (per machine, all KBs — the manifest / cache)
 ```jsonc
-{ "knowledgeBases": [ { "name": "acme", "path": "/Users/you/dev/acme/knowledge-base", "remote": "acme/knowledge-base" } ] }
+{
+  "version": 2,
+  "knowledgeBases": [{
+    "name": "acme", "path": "/Users/you/dev/acme/knowledge-base", "remote": "acme/knowledge-base",
+    "description": "Acme product knowledge base.",
+    "topics": ["acme", "web", "billing"],
+    "products": [{ "key": "web", "sourceRepo": "acme/web" }],
+    "lastRegistered": "2026-06-13"
+  }]
+}
 ```
+Managed by `manifest.mjs`: `upsert <kbPath>` (register/refresh from kb.config.json), `scan [roots…]`
+(discover + register), `list`, `resolve <cwd>` (deterministic repo-match). Override the path with
+`$KB_REGISTRY`; scan roots with `$KB_SCAN_ROOTS`.
 
 ### `kb.index.json` (generated)
 Built by `build-index.mjs`, which walks the KB (ignoring `.git`, `.claude`, `doc-templates`,
