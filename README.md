@@ -1,68 +1,113 @@
 # Knowledge Base Template
 
-A git-based, **model-agnostic** knowledge-base scaffold for any product or product family. It ships
-with two skills — a `/kb-setup` bootstrap and a `/kb` bridge — and a typed, provenanced,
-staleness-tracked document taxonomy. Copy it, open it in Claude (or Codex), run `/kb-setup`, answer
-a few questions, and you have a wired, GitHub-backed knowledge base.
+> A git-based, **model-agnostic** knowledge base you can spin up for any product in two minutes —
+> with a guided setup and a `/kb` skill that bridges your day-to-day coding to a centralized,
+> verifiable knowledge store. Works with **Claude Code** and **Codex**.
 
-> The KB is durable, vendor-independent memory. Every fact is **typed**, **provenanced** (cites a
-> PR / file / commit), and **staleness-tracked** (`last_verified`). Trust comes from verifiability,
-> not from any one model's memory.
+The KB is durable, vendor-independent memory. Every fact is **typed**, **provenanced** (cites a PR /
+file / commit), and **staleness-tracked** (`last_verified`) — so any agent or model can retrieve and
+*verify* it. Trust comes from verifiability, not from one model's memory.
 
-## Quick start
+---
 
-1. **Copy this template** to a new folder (the KB will live here):
-   ```bash
-   cp -R ~/Developer/templates/knowledge-base ~/Developer/<somewhere>/<my>-knowledge-base
-   # or, if published as a GitHub template repo: "Use this template" → clone
-   ```
-2. **Open that folder in Claude Code** (or Codex). Because the skills ship under `.claude/skills/`,
-   `/kb-setup` and `/kb` are immediately available in that session.
-3. **Run `/kb-setup`.** It interviews you (GitHub destination, first product, source repo to
-   document, wiring) one question at a time, then:
-   - writes `kb.config.json` and the section scaffolding,
-   - `git init` + creates the GitHub repo + pushes,
-   - installs `/kb` globally (Claude + Codex) and registers this KB,
-   - optionally runs a first deep sweep to populate from the source repo's history.
-4. **Done.** From any product repo, `/kb` now bridges your work to this KB.
+## 🚀 First-time setup
+
+**Pick one path — both produce the same wired, GitHub-backed KB.**
+
+### A. With an agent (recommended)
+1. Click **“Use this template”** on GitHub → create your KB repo → clone it.
+   *(Or copy this folder.)*
+2. Open the folder in **Claude Code** or **Codex**. The skills ship under `.claude/skills/`, so
+   **`/kb-setup` is available immediately** in that session.
+3. Run **`/kb-setup`**. Answer a few questions (GitHub destination, your first product, the source
+   repo it documents). It scaffolds the KB, creates the GitHub repo, and wires `/kb` in globally.
+
+### B. From the terminal
+```bash
+npm run setup     # interactive: interview → scaffold → GitHub repo → global wiring
+```
+
+That's it. From any product repo afterwards, just type **`/kb`**.
+
+---
 
 ## What you get
 
-- **`/kb` (bridge skill)** — config-driven, registry-aware. Modes:
-  - `/kb` — read: detect the product from cwd, pull the KB, surface the matching notes/ADRs/reference.
-  - `/kb adr` · `/kb note` — capture a decision/follow-up (with a built-in grill-check) → commit + push.
-  - `/kb sweep <product>` — heavy git/PR fan-out audit since the watermark; rebuilds docs + bumps it.
-- **`/kb-setup` (bootstrap skill)** — the interactive scaffolder. Dual-mode: bootstrap a new KB, or
-  add a product to an existing one.
-- **Document taxonomy + metadata backbone** — see [docs/CONVENTIONS.md](./docs/CONVENTIONS.md).
-- **Generated index** — `kb.index.json` (zero-dep `build-index.mjs`) for cheap agent retrieval.
-- **Doc skeletons** — [doc-templates/_skeletons.md](./doc-templates/_skeletons.md), copied on capture.
+- **`/kb` — the bridge skill** (config-driven, registry-aware; serves multiple KBs):
+  - `/kb` — **read**: detects the product from your cwd, pulls the KB, surfaces the matching
+    notes / ADRs / reference for what you're doing. Writes nothing to your working repo.
+  - `/kb adr` · `/kb note` — **capture**: a decision/follow-up, with a built-in grill-check, then
+    commit + push.
+  - `/kb sweep <product>` — **deep refresh**: git/PR fan-out audit since the watermark; rebuilds the
+    reference docs and appends a dated audit.
+- **`/kb-setup` — the bootstrap skill**: the interactive scaffolder. Dual-mode — bootstrap a new KB,
+  or add a product to an existing one.
+- **A typed document taxonomy + metadata backbone** — see [`docs/CONVENTIONS.md`](./docs/CONVENTIONS.md).
+- **A generated index** (`kb.index.json`, zero-dependency builder) for cheap agent retrieval.
+- **Doc skeletons** ([`doc-templates/_skeletons.md`](./doc-templates/_skeletons.md)) copied on capture.
+
+---
+
+## Document taxonomy (at a glance)
+
+`reference` · `explanation` · `adr` · `rfc` · `runbook` · `glossary` · `invariant` · `contract` ·
+`audit` · `note` · `context` · `index` — unified by one YAML front-matter schema and one index.
+Standards behind them: Diátaxis, MADR, C4, DDD ubiquitous language, RFC. Full details in
+[`docs/CONVENTIONS.md`](./docs/CONVENTIONS.md).
+
+---
+
+## How it works
+
+The short version: a single global `/kb` skill bridges whatever repo you're in to the right section
+of a separate, version-controlled KB — reading context in, capturing decisions out, never polluting
+your working repo. For the full architecture (resolution algorithm, the three modes, the data model,
+design rationale, troubleshooting), read **[`docs/HOW-IT-WORKS.md`](./docs/HOW-IT-WORKS.md)**.
+
+---
+
+## Requirements
+
+- **Node ≥ 18** (scripts use `node:` built-ins only — zero npm dependencies).
+- **git** + the **GitHub CLI (`gh`)**, authenticated (`gh auth status`).
+- **Claude Code** or **Codex** for the skill-driven flow (optional; `npm run setup` works without one).
+
+---
 
 ## Layout
 
 ```
 .
 ├── README.md                       # this file (replaced by the KB index after setup)
-├── kb.config.example.json          # shape of the config /kb-setup will generate
-├── docs/CONVENTIONS.md             # taxonomy + metadata schema + how /kb works
+├── package.json                    # npm run setup | scaffold | index
+├── kb.config.example.json          # shape of the config setup generates
+├── docs/
+│   ├── CONVENTIONS.md              # taxonomy + metadata schema + folder shape
+│   └── HOW-IT-WORKS.md             # deep architecture & operations dive
 ├── doc-templates/_skeletons.md     # front-matter skeleton per doc type
 ├── scripts/
-│   ├── scaffold.mjs                # deterministic file generation from setup answers
-│   └── wire-global.sh              # install /kb globally + register the KB
+│   ├── setup.mjs                   # interactive terminal setup (npm run setup)
+│   ├── scaffold.mjs                # deterministic file generation
+│   └── wire-global.sh             # install /kb globally + register the KB
 └── .claude/skills/
     ├── kb-setup/SKILL.md           # the interactive bootstrap
     └── kb/SKILL.md + scripts/      # the bridge skill + index builder
 ```
 
-## Manual setup (no agent)
+---
+
+## Manual setup (no agent, no prompts)
 
 ```bash
-cp kb.config.example.json kb.config.json   # then edit: remote, products, source repos
-node scripts/scaffold.mjs --manual         # scaffold sections from kb.config.json
+cp kb.config.example.json kb.config.json      # edit: name, remote, products, source repos
+node scripts/scaffold.mjs --manual            # scaffold sections from kb.config.json
 git init && git add -A && git commit -m "feat: bootstrap knowledge base"
 gh repo create <owner>/<repo> --private --source=. --remote=origin --push
 bash scripts/wire-global.sh "$PWD" "<kb-name>" "<owner>/<repo>"
 ```
 
-All the context an agent needs to set this up lives in
-[`.claude/skills/kb-setup/SKILL.md`](./.claude/skills/kb-setup/SKILL.md).
+---
+
+## License
+
+[MIT](./LICENSE).

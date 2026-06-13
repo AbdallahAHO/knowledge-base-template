@@ -1,0 +1,16 @@
+{
+  "name": "knowledge-base-template",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Git-based, model-agnostic knowledge-base template with a /kb-setup bootstrap and a /kb bridge skill for Claude Code and Codex.",
+  "type": "module",
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "scaffold": "node scripts/scaffold.mjs",
+    "index": "node .claude/skills/kb/scripts/build-index.mjs ."
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
