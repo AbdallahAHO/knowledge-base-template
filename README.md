@@ -12,7 +12,8 @@ file / commit), and **staleness-tracked** (`last_verified`) — so any agent or 
 
 ## 🚀 First-time setup
 
-**Pick one path — both produce the same wired, GitHub-backed KB.**
+**Standalone KB** (a separate, GitHub-backed repo documenting one+ products) — pick A or B. Or, for a
+self-contained project, an **in-repo KB** that lives in your repo's own `docs/` — path C.
 
 ### A. With an agent (recommended)
 1. Click **“Use this template”** on GitHub → create your KB repo → clone it.
@@ -28,6 +29,18 @@ npm run setup     # interactive: interview → scaffold → GitHub repo → glob
 ```
 
 That's it. From any product repo afterwards, just type **`/kb`**.
+
+### C. In-repo KB — no separate repo
+For a self-contained project (a starter, a single service), keep the KB **inside the repo's own
+`docs/`** instead of a separate repo. From that repo:
+```bash
+/kb init                                                  # in Claude / Codex
+# or:  node ~/.claude/skills/kb/scripts/manifest.mjs init "$PWD"
+```
+It writes `docs/kb.config.json` (`layout: in-repo`), seeds the capture targets, builds
+`docs/kb.index.json`, and registers the KB. `/kb` resolves to it from then on — and the docs ship and
+version with your code, no extra repo and no push step. `/kb` even *offers* this automatically when it
+sees a `docs/` that looks like a KB but isn't configured yet.
 
 ---
 
@@ -59,10 +72,11 @@ Standards behind them: Diátaxis, MADR, C4, DDD ubiquitous language, RFC. Full d
 
 ## How it works
 
-The short version: a single global `/kb` skill bridges whatever repo you're in to the right section
-of a separate, version-controlled KB — reading context in, capturing decisions out, never polluting
-your working repo. For the full architecture (resolution algorithm, the three modes, the data model,
-design rationale, troubleshooting), read **[`docs/HOW-IT-WORKS.md`](./docs/HOW-IT-WORKS.md)**.
+The short version: a single global `/kb` skill bridges whatever repo you're in to the right KB — a
+**separate** version-controlled repo, or an **in-repo** one in your own `docs/` (`/kb init`) — reading
+context in, capturing decisions out. For the full architecture (resolution algorithm, the three modes,
+the data model, design rationale, troubleshooting), read
+**[`docs/HOW-IT-WORKS.md`](./docs/HOW-IT-WORKS.md)**.
 
 ---
 

@@ -20,9 +20,11 @@ model, and the design rationale. For the metadata/taxonomy rules see
 
 ## 1. Mental model
 
-A **knowledge base (KB)** is a separate, git-versioned repository that holds durable, structured
-knowledge about one or more **products** (each product = one source code repo it documents). You
-don't read or edit the KB by hand day-to-day. Instead, a single global skill — **`/kb`** — acts as a
+A **knowledge base (KB)** is a git-versioned store of durable, structured knowledge about one or more
+**products** (each product = one source code repo it documents). It has two layouts: usually a
+**separate** repo documenting one+ products; or, for a self-contained project (a starter, a single
+service), an **in-repo** KB inside that repo's own `docs/` (`layout: in-repo`, adopt with `/kb init`).
+Either way you don't read or edit it by hand day-to-day — a single global skill — **`/kb`** — acts as a
 **bridge** between whatever repo you're currently working in and the right KB section.
 
 ```
@@ -40,7 +42,9 @@ don't read or edit the KB by hand day-to-day. Instead, a single global skill —
 
 Two hard guarantees make this safe and reliable:
 
-1. **No pollution** — `/kb` reads the working repo for context but writes **only** into the KB repo.
+1. **No pollution** — `/kb` reads the working repo for context but writes **only** into the resolved
+   KB. (For an **in-repo** KB the KB *is* the working repo's `docs/`, so writes land there and commit
+   with the repo — still never elsewhere in it.)
 2. **Verifiability over memory** — every fact in the KB is **typed**, **provenanced** (cites a PR /
    file / commit), and **staleness-tracked** (`last_verified`). Any agent or model can ingest and
    *verify* it; trust never depends on a particular model's memory. That is what "model-agnostic
@@ -58,7 +62,7 @@ Two hard guarantees make this safe and reliable:
 | **`wire-global.sh`** | `scripts/` | Installs `/kb` globally (Claude + Codex) and registers the KB. |
 | **`setup.mjs`** | `scripts/` | Terminal equivalent of `/kb-setup` for non-agent use (`npm run setup`). |
 | **`build-index.mjs`** | `.claude/skills/kb/scripts/` | Zero-dependency index builder → `kb.index.json`. |
-| **`manifest.mjs`** | `.claude/skills/kb/scripts/` | Manages the multi-KB manifest: `upsert` / `scan` / `list` / `resolve`. Travels with the global skill. |
+| **`manifest.mjs`** | `.claude/skills/kb/scripts/` | Manages the multi-KB manifest: `upsert` / `scan` / `init` (adopt a repo's `docs/` as an in-repo KB) / `list` / `resolve`. Travels with the global skill. |
 | **`kb.config.json`** | KB root | Product registry for this KB: each product's key, name, source repo, and `repoMatch` rules. |
 | **`<product>/.state.json`** | per section | The **watermark** — last PR/commit a `sweep` covered. |
 | **`kb.index.json`** | KB root | Generated manifest of all docs (id, type, scope, summary, path). |
@@ -109,6 +113,10 @@ ladder** over the manifest (`~/.config/kb/registry.json`):
 2. **Repo match (deterministic).** `manifest.mjs resolve "$PWD"` tests the working repo against every
    KB's product `repoMatch` — `remotes` (vs `git remote get-url origin`), `folderNames` (cwd folder),
    `pathContains` (cwd path). Exactly one `matches[]` → use it.
+2b. **In-repo docs KB.** `resolve` also reports an `inRepo` block for the working repo's own `docs/`:
+   a `docs/kb.config.json` (auto-registered on resolve) is the repo's own KB; a `docs/` that merely
+   *looks* like a KB (`adr/` / `CONTEXT.md`, no config) is flagged a **candidate** → `/kb init` adopts
+   it. Prefer the repo's own KB over a central one for repo-local facts.
 3. **Topic match.** No repo match (a general question or unrelated dir) → rank the manifest's
    `knowledgeBases[]` by `description` + `topics` against the conversation. One clearly best → use it.
 4. **Ask.** Otherwise show a picker of candidate KBs (`name — description`). One KB total → just use it.
@@ -183,6 +191,10 @@ first.
 }
 ```
 
+> **In-repo variant:** the config sits at `<repo>/docs/kb.config.json` with `"layout": "in-repo"` and a
+> single product whose `"section": "."` (the docs root *is* the section) and `"inRepo": true`;
+> `repoMatch` points at the host repo, and no separate `remote` is required. Adopt it with `/kb init`.
+
 ### `<product>/.state.json` (watermark)
 ```jsonc
 { "product": "web", "repo": "acme/web",
@@ -218,9 +230,11 @@ id, and are flagged under `missingFrontMatter` so gaps are visible.
 
 ## 7. Why these choices (design rationale)
 
-- **Separate KB repo, not in-repo docs.** Knowledge spans products and outlives any one repo; a
-  central KB is queryable from everywhere and survives repo churn. The bridge keeps it from being a
-  chore.
+- **Separate KB by default, in-repo when self-contained.** Cross-product knowledge that outlives any
+  one repo belongs in a central KB — queryable from everywhere, surviving repo churn. But a
+  self-contained project (a starter, a single service) is better served by an **in-repo** KB in its own
+  `docs/` (`/kb init`): zero extra repo, the docs ship and version with the code, and `/kb` still
+  resolves + indexes it. Same skill, same taxonomy, same front-matter — only the home differs.
 - **Front-matter + index, not free-form Markdown.** Structure is what lets *any* model retrieve and
   verify reliably. The index is the retrieval contract — cheap, deterministic, no embeddings needed.
 - **Provenance + `last_verified`.** A KB's failure mode is silent staleness. Citations make claims
@@ -252,7 +266,7 @@ id, and are flagged under `missingFrontMatter` so gaps are visible.
 
 | Symptom | Cause / fix |
 |---------|-------------|
-| `/kb` says no KB found | `~/.config/kb/registry.json` missing/empty → run `/kb-setup`, or set `$KB_HOME`. |
+| `/kb` says no KB found | `~/.config/kb/registry.json` missing/empty → run `/kb-setup`, or `$KB_HOME`. If the repo has its own `docs/`, run `/kb init` to adopt it as an in-repo KB. |
 | `/kb` picks the wrong product | Tighten `repoMatch` in `kb.config.json` (add the exact `pathContains`/remote). |
 | Push fails: `Permission denied (publickey)` | Locked SSH agent → switch remote to HTTPS and `gh auth setup-git && git push` (setup does this automatically). |
 | Index missing a doc | It has no front-matter and an odd path → add front-matter, or extend `inferType`; check `missingFrontMatter` in `kb.index.json`. |

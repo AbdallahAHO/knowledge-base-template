@@ -6,8 +6,8 @@ description: >-
   context for the product they're working on, capture a decision or follow-up into the KB,
   or run a deep git/PR sweep to refresh a product's KB section. Config-driven and registry-aware:
   supports multiple KBs via a manifest (use `/kb @name` to target one; `/kb list` / `/kb scan` to
-  manage them). Reads the current conversation and light repo signals; writes ONLY to the centralized
-  KB repo, never into the working repo.
+  manage them). A KB is a standalone repo OR lives in a product repo's own docs/ (in-repo; `/kb init`).
+  Reads the working repo for context; writes only into the resolved KB.
 ---
 
 # kb — knowledge-base bridge
@@ -19,8 +19,11 @@ from config, so it works for any KB created from the template.
 
 ## Iron rules
 
-1. **Never pollute the working repo.** Read the working repo (conversation, `git log`, current
-   diff, staged changes) for context, but **write only inside the KB repo**.
+1. **Write only inside the resolved KB.** Read the working repo (conversation, `git log`, current
+   diff, staged changes) for context, but write KB content only into the KB. **Exception — in-repo
+   KBs:** when the resolved KB IS the working repo's own `docs/` (`layout: in-repo`), `docs/` is the
+   KB — writes belong there and commit with the repo. Never put KB content elsewhere in the repo, and
+   never write repo-specific facts into a central/shared KB.
 2. **Verify before you write.** Run the built-in grill-check (below) on every capture.
 3. **Cite provenance.** Every claim links a PR, file, or commit. No unsourced assertions.
 4. **Keep the index fresh.** After any write, rebuild `kb.index.json`.
@@ -35,15 +38,22 @@ Resolve in order:
    forces a specific KB path. If the manifest is missing/empty, run
    `node ~/.claude/skills/kb/scripts/manifest.mjs scan` (or have the user run `/kb-setup`).
 2. **Repo match (deterministic).** Run `node ~/.claude/skills/kb/scripts/manifest.mjs resolve "$PWD"`.
-   If it returns exactly one `matches[]` entry, use that `{kb, product}`.
+   If it returns exactly one `matches[]` entry, use that `{kb, product, kbPath}`.
+2b. **In-repo docs KB.** The resolve output's `inRepo` block describes the *working repo's own* `docs/`.
+   If `inRepo.configured` (a `docs/kb.config.json` exists — auto-registered on resolve), that IS the
+   repo's own KB: use `{kbPath: inRepo.docsPath}`. If `inRepo.candidate` (docs/ looks like a KB —
+   `adr/` / `CONTEXT.md` — but has no config), **offer `/kb init`** to adopt it before falling to a
+   central KB. Always prefer the repo's own KB for repo-local facts; never write them into a shared KB
+   just because no in-repo one is registered yet.
 3. **Topic match.** No repo match (general question / unrelated dir) → rank the `knowledgeBases[]`
    from the resolve output by their `description` + `topics` against the conversation. One clearly
    best → use it; otherwise →
 4. **Ask.** Show an AskUserQuestion picker of candidate KBs (`name — description`). If only one KB
    exists, just use it (confirm the product if ambiguous).
 
-Then **sync** (`git -C <kbPath> pull --ff-only`) and **orient** (read `<kbPath>/<section>/CONTEXT.md`
-and `<kbPath>/kb.index.json`) before acting.
+Then **sync** (`git -C <kbPath> pull --ff-only`; skip for in-repo — it's the working repo) and
+**orient** (read `<kbPath>/<section>/CONTEXT.md` and `<kbPath>/kb.index.json`) before acting. For
+in-repo KBs `section` is `.`, so paths collapse to `<kbPath>/` directly (`<kbPath>/CONTEXT.md`).
 
 ## Admin & discovery
 
@@ -52,6 +62,10 @@ and `<kbPath>/kb.index.json`) before acting.
 - **`/kb scan`** — discover KBs on disk and (re)register them (new machine / cloud agent):
   `node ~/.claude/skills/kb/scripts/manifest.mjs scan`. Roots default to `~/Developer` + cwd; override
   with args or `$KB_SCAN_ROOTS`.
+- **`/kb init`** — adopt the *current repo's* `docs/` as its own **in-repo** KB (no separate KB repo):
+  `node ~/.claude/skills/kb/scripts/manifest.mjs init "$PWD"`. Writes `docs/kb.config.json` (`layout:
+  in-repo`, one product = this repo, `section: .`), seeds glossary/invariants/notes if absent, builds
+  `docs/kb.index.json`, and registers it. Use this when `/kb` reports an `inRepo.candidate`.
 - **`/kb @<name> …`** — force a specific KB for any mode (read/capture/sweep).
 - After any **capture/sweep**, refresh that KB's cached manifest fields:
   `node ~/.claude/skills/kb/scripts/manifest.mjs upsert <kbPath>`.
@@ -79,6 +93,9 @@ Capture a decision, gotcha, or follow-up. Pick the `type` and target (see
 - **`invariant`** → append to `<section>/invariants.md`.
 - **`glossary`** → append to `<section>/glossary.md`.
 - **`runbook`** → `<section>/runbooks/kebab-title.md`.
+
+> **In-repo KBs** use `section: "."` — the docs root IS the section, so the paths above resolve under
+> `<kbPath>/` directly (`<kbPath>/adr/NNNN…`, `<kbPath>/notes.md`).
 
 ### Built-in grill-check (before writing)
 Ask one at a time, only what you can't infer with confidence:
@@ -123,7 +140,11 @@ See `<kbPath>/docs/CONVENTIONS.md`. Required: `id`, `type`, `product`, `summary`
   `chore(<product>): sweep KB to PR #<n>`.
 - The grill-check confirmation **is** the approval for the outward push.
 - If push fails on SSH (locked agent), switch the remote to HTTPS and push via the `gh` token.
+- **In-repo KBs** have no separate remote — `<kbPath>` is inside the working repo. Stage + commit to
+  the **host repo** (`git -C <repoRoot> add docs/ && git -C <repoRoot> commit -m "docs(kb): …"`,
+  `commit.gpgsign=false`, no AI attribution). Do **not** push separately — it ships with the repo.
 
 ## Index
 
-After every write: `node <kbPath>/.claude/skills/kb/scripts/build-index.mjs <kbPath>`.
+After every write: `node <kbPath>/.claude/skills/kb/scripts/build-index.mjs <kbPath>`. **In-repo KBs**
+have no local scripts — use the global one: `node ~/.claude/skills/kb/scripts/build-index.mjs <kbPath>`.
