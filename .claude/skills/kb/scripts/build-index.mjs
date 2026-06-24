@@ -24,18 +24,31 @@ const walk = (dir) => {
   return out;
 };
 
-// Reads only top-level scalar / inline-array keys; ignores indented (nested) lines.
+// Reads top-level scalar / inline-array keys plus folded/literal block scalars
+// (`key: >`, `>-`, `|`, …); ignores other indented (nested) blocks like `sources:`.
 const parseFrontMatter = (text) => {
   if (!text.startsWith('---')) return undefined;
   const end = text.indexOf('\n---', 3);
   if (end === -1) return undefined;
+  const lines = text.slice(3, end).split('\n');
   const fm = {};
-  for (const line of text.slice(3, end).split('\n')) {
-    if (!line || /^\s/.test(line)) continue;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line || /^\s/.test(line)) continue; // blank or a nested/continuation line
     const m = line.match(/^([A-Za-z_]+):\s*(.*)$/);
-    if (!m || m[2].trim() === '') continue;
+    if (!m) continue;
+    const key = m[1];
     const val = m[2].trim();
-    fm[m[1]] =
+    const block = val.match(/^([|>])[+-]?$/); // block scalar header → fold the indented body
+    if (block) {
+      const body = [];
+      while (i + 1 < lines.length && (lines[i + 1] === '' || /^\s/.test(lines[i + 1]))) body.push(lines[++i]);
+      const dedented = body.map((l) => l.replace(/^\s+/, ''));
+      fm[key] = (block[1] === '|' ? dedented.join('\n') : dedented.join(' ').replace(/[ \t]+/g, ' ')).trim();
+      continue;
+    }
+    if (val === '') continue; // a nested block (e.g. `sources:` / `last_verified:`) on following lines
+    fm[key] =
       val.startsWith('[') && val.endsWith(']')
         ? val.slice(1, -1).split(',').map((s) => s.trim()).filter(Boolean)
         : val.replace(/^["']|["']$/g, '');
