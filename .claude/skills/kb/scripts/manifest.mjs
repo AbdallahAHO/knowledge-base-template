@@ -182,7 +182,8 @@ const initInRepo = (cwd) => {
   const seed = (rel, type, summary, body) => {
     const p = join(docs, rel);
     if (existsSync(p)) return;
-    writeFileSync(p, fm({ id: `${name}-${type}`, type, product: name, summary }) + body);
+    const idSlug = rel.replace(/\.md$/, ''); // id matches the filename so cross-links resolve (invariants, notes)
+    writeFileSync(p, fm({ id: `${name}-${idSlug}`, type, product: name, summary }) + body);
   };
   seed('glossary.md', 'glossary', `Canonical ${name} terms so every model uses one vocabulary.`,
     `\n# Glossary — ${name}\n\n_Append terms as_ \`- **Term** — definition. (source: pr/file)\`_._\n`);
