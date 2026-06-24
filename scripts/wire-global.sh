@@ -17,9 +17,18 @@ SKILL_SRC="$KB_PATH/.claude/skills/kb"
 
 # 1. Install /kb globally as a real copy (independent of any single KB, so a deleted KB never
 #    leaves a dangling skill). The skill resolves KB paths at runtime via the manifest.
+#    Guard against DOWNGRADES: KBs created at different times drift, so never overwrite a newer
+#    global skill with an older KB's bundled copy — compare VERSION, install only same-or-newer.
 mkdir -p "$HOME/.claude/skills" "$HOME/.codex/skills/kb"
-rm -rf "$HOME/.claude/skills/kb"          # safe: removes a prior symlink or our prior copy
-cp -R "$SKILL_SRC" "$HOME/.claude/skills/kb"
+incoming_v="$(cat "$SKILL_SRC/VERSION" 2>/dev/null || echo 1)"
+installed_v="$(cat "$HOME/.claude/skills/kb/VERSION" 2>/dev/null || echo 0)"
+if [ "${installed_v:-0}" -gt "${incoming_v:-1}" ]; then
+  echo "Global /kb skill is v$installed_v (newer than this KB's v$incoming_v) — keeping it; only refreshing the manifest entry."
+else
+  rm -rf "$HOME/.claude/skills/kb"          # safe: removes a prior symlink or our prior copy
+  cp -R "$SKILL_SRC" "$HOME/.claude/skills/kb"
+  echo "Installed /kb skill v$incoming_v globally."
+fi
 ln -sfn "$HOME/.claude/skills/kb/SKILL.md" "$HOME/.codex/skills/kb/SKILL.md"
 
 # 2. Register this KB in the manifest (derives name/description/topics/products from kb.config.json)
