@@ -22,11 +22,21 @@ setup script."
 
 Always run from the KB repo root (the folder containing `kb.config.example.json` / `kb.config.json`).
 
+> **Self-contained project?** If the knowledge belongs to a single repo and doesn't need a separate
+> home, you may not need a standalone KB at all — from that repo, `/kb init` adopts its own `docs/` as an
+> **in-repo** KB (no extra repo; it ships with the code). Use `kb-setup` when the KB spans multiple repos
+> or you want a dedicated, separately-versioned knowledge base.
+
 ## Bootstrap interview
+
+**Preflight first** (fail fast): confirm `node -v` ≥ 18 and that `gh auth status` is authenticated — if
+`gh` isn't logged in, stop and have the user run `gh auth login` before continuing.
 
 Ask **one question at a time**. Provide a recommended answer for each. Use the AskUserQuestion tool
 for crisp choices; ask in prose when free-text is needed (names, repo slugs, paths). Grill lightly —
-only ask what you can't infer; confirm anything ambiguous.
+only ask what you can't infer; confirm anything ambiguous. **Infer rather than ask when run from inside
+the product repo:** `owner` ← `gh api user --jq .login`, `sourceRepo` ← `git remote get-url origin`,
+`sourceLocalPath` ← `$PWD` — present these as pre-filled defaults to confirm, not open questions.
 
 1. **KB identity & destination** —
    - `kbName` (short slug, e.g. the org/family name) — also the `@target` for `/kb @name`.
