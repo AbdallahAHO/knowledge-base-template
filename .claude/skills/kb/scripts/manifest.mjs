@@ -149,10 +149,10 @@ const initInRepo = (cwd) => {
   const docs = join(root, 'docs');
   if (!existsSync(docs)) throw new Error(`no docs/ at ${root} — create a docs/ folder to adopt as the KB`);
   const name = basename(root);
+  const remote = ownerRepo(gitRemote(root));
   const cfgPath = join(docs, 'kb.config.json');
 
   if (!existsSync(cfgPath)) {
-    const remote = ownerRepo(gitRemote(root));
     const cfg = {
       version: 1,
       kbHome: '.',
@@ -178,19 +178,29 @@ const initInRepo = (cwd) => {
     writeFileSync(cfgPath, JSON.stringify(cfg, undefined, 2) + '\n');
   }
 
-  // Seed lightweight capture targets at the docs root if absent (never clobber curated docs).
+  // Seed orientation + capture targets at the docs root if absent (never clobber curated docs).
   const seed = (rel, type, summary, body) => {
     const p = join(docs, rel);
     if (existsSync(p)) return;
-    const idSlug = rel.replace(/\.md$/, ''); // id matches the filename so cross-links resolve (invariants, notes)
+    const idSlug = rel.replace(/\.md$/, '').toLowerCase(); // id matches the filename so cross-links resolve (context, invariants, notes)
     writeFileSync(p, fm({ id: `${name}-${idSlug}`, type, product: name, summary }) + body);
   };
+  seed('CONTEXT.md', 'context', `Orientation for ${name} — load this first.`,
+    `\n# ${name} — orientation\n\n## What it is\n_TBD — describe ${name} in a line or two._\n\n## Where to look\n| Need | Doc |\n|------|-----|\n| Canonical terms | [glossary.md](./glossary.md) |\n| Guardrails | [invariants.md](./invariants.md) |\n| Open follow-ups | [notes.md](./notes.md) |\n| Decisions | [adr/](./adr/) |\n\n## State\n- **Source repo:** ${remote || '(local — no remote yet)'}\n- **Watermark:** see [.state.json](./.state.json); run \`/kb sweep ${name}\`.\n`);
   seed('glossary.md', 'glossary', `Canonical ${name} terms so every model uses one vocabulary.`,
     `\n# Glossary — ${name}\n\n_Append terms as_ \`- **Term** — definition. (source: pr/file)\`_._\n`);
   seed('invariants.md', 'invariant', 'Rules that must always hold — agent guardrails.',
     `\n# Invariants — ${name}\n\n_Append numbered rules with the reason and source._\n`);
   seed('notes.md', 'note', 'Running follow-ups and open questions. Newest at top.',
     `\n# Notes & follow-ups — ${name}\n\n_Append items under a dated heading, newest at top._\n`);
+
+  // Watermark for /kb sweep (dotfile — not indexed); seeded once, sweep advances it.
+  const statePath = join(docs, '.state.json');
+  if (!existsSync(statePath)) writeFileSync(statePath, JSON.stringify({
+    product: name, repo: remote || null,
+    lastSwept: { pr: 0, commit: null, date: null, method: 'init', by: null },
+    note: `Adopted in-repo via /kb init. Run \`/kb sweep ${name}\` to populate from git history.`,
+  }, undefined, 2) + '\n');
 
   try { execSync(`node ${JSON.stringify(join(HERE, 'build-index.mjs'))} ${JSON.stringify(docs)}`, { stdio: 'inherit' }); }
   catch { console.log(`  (run \`node ${join(HERE, 'build-index.mjs')} ${docs}\` to build the index)`); }
