@@ -79,6 +79,14 @@ Skeletons for each type: [../doc-templates/_skeletons.md](../doc-templates/_skel
 └── audits/YYYY-MM-*.md  # type: audit (point-in-time)
 ```
 
+### In-repo layout (a single repo's own docs/)
+
+For a self-contained project the KB can live **inside the product repo's `docs/`** instead of a separate
+repo — adopt it with `/kb init`. Then `kb.config.json` sits at `<repo>/docs` with `layout: in-repo` and a
+single product whose `section` is `.` (the docs root **is** the section). The shape is **flat** —
+`CONTEXT.md`, `glossary.md`, `invariants.md`, `notes.md`, `adr/`, `runbooks/`, … live directly under
+`docs/`, not under a `<product>/` subfolder — and the same taxonomy, front-matter, and index apply.
+
 ## The index
 
 `kb.index.json` is a generated manifest (id, type, product, scope, summary, path). Agents read the
