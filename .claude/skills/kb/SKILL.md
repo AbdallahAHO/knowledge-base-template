@@ -108,6 +108,24 @@ Ask one at a time, only what you can't infer with confidence:
 Then write with full front-matter, set `last_verified` to today + the working repo's `HEAD` short
 SHA, rebuild the index, commit + push.
 
+### Capture in a vault (`layout: vault`)
+Same grill-check; the targets are the context types from `docs/CONVENTIONS.md`:
+`meeting` → `meetings/YYYY-MM-DD-slug.md`, `person` → `people/first-last.md`, `area` →
+`areas/<area>/…`, `project` → `projects/<slug>/README.md`, `adr` → `decisions/NNNN-*.md`. Raw inputs
+go to `sources/` untouched first; distilled docs cite them. Living docs (`area`/`person`/`project`)
+are updated **in place** + one `## Log` line; set `last_verified: { date: <today> }` (no commit).
+
+## Mode: review  (`/kb review`)
+
+Keeps a KB trustworthy over time. Rebuild the index, then:
+1. Walk `kb.index.json` → `stale` (oldest first). For each: re-check its `sources` (re-read the
+   source doc / PR / file); update it in place or mark `status: superseded` with `supersedes` on the
+   replacement; bump `last_verified`.
+2. List open follow-ups (`note` docs, unchecked `- [ ]` items in `meeting`/`project` docs) older than
+   two weeks, and ask which to close, carry or drop.
+3. Flag docs with `confidence: low` that are linked from many others — they are load-bearing guesses.
+4. Commit as `docs(<product>): review — <n> refreshed, <m> superseded`.
+
 ## Mode: sweep  (`/kb sweep <product>`)
 
 Heavy refresh — a git/PR fan-out audit since the watermark. Bootstraps a new section or refreshes one.
@@ -129,7 +147,8 @@ Heavy refresh — a git/PR fan-out audit since the watermark. Bootstraps a new s
 ## Front-matter schema
 
 See `<kbPath>/docs/CONVENTIONS.md`. Required: `id`, `type`, `product`, `summary`. Always set
-`sources` and `last_verified`.
+`sources` and `last_verified`. Optional: `confidence`, `supersedes`, `stale_after`. Vault KBs add the
+context types `source | meeting | person | area | project | journal`.
 
 ## Git protocol (full-auto, gated by the grill-check)
 

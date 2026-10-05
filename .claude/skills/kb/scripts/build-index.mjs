@@ -6,13 +6,21 @@
  * (scalars + inline arrays). Nested blocks like `sources:` are intentionally
  * skipped — the index only needs the retrieval-relevant top-level fields.
  *
+ * Staleness: a doc is stale when its `last_verified` date is older than its `stale_after` (days)
+ * or the per-type default in kb.config.json `staleAfterDays` (e.g. { "area": 30, "person": 60 }).
+ * Stale docs are listed in the index so `/kb review` can work through them.
+ *
  * Usage: node .claude/skills/kb/scripts/build-index.mjs [kbRoot]   (defaults to cwd)
  */
 import { readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 const ROOT = process.argv[2] || process.cwd();
-const IGNORE = new Set(['node_modules', '.git', '.claude', 'doc-templates', 'scripts']);
+const readConfig = () => { try { return JSON.parse(readFileSync(join(ROOT, 'kb.config.json'), 'utf8')); } catch { return {}; } };
+const CONFIG = readConfig();
+// kb.config.json `indexIgnore` adds folders to skip (e.g. a vault's raw `data/` or `inbox/`).
+const IGNORE = new Set(['node_modules', '.git', '.claude', 'doc-templates', 'scripts', ...(CONFIG.indexIgnore || [])]);
+const STALE_AFTER_DAYS = CONFIG.staleAfterDays || {};
 
 const walk = (dir) => {
   const out = [];
@@ -58,7 +66,12 @@ const parseFrontMatter = (text) => {
 
 const firstHeading = (text) => (text.match(/^#\s+(.+)$/m) || [])[1];
 
+// Vault layout folders map to the context types; `/x/` checks also match top-level folders.
+const VAULT_FOLDERS = { sources: 'source', meetings: 'meeting', people: 'person', areas: 'area', projects: 'project', journal: 'journal', decisions: 'adr' };
+
 const inferType = (rel) => {
+  const top = rel.split('/')[0];
+  if (CONFIG.layout === 'vault' && VAULT_FOLDERS[top]) return VAULT_FOLDERS[top];
   if (rel.includes('/adr/')) return 'adr';
   if (rel.includes('/rfc/')) return 'rfc';
   if (rel.includes('/runbooks/')) return 'runbook';
@@ -70,12 +83,22 @@ const inferType = (rel) => {
   );
 };
 
+// `last_verified` is `{ commit, date }` in code KBs and may be a bare date in a vault.
+const verifiedDate = (value) => (String(value || '').match(/\d{4}-\d{2}-\d{2}/) || [])[0];
+
+const isStale = (entry, staleAfter) => {
+  const days = Number(staleAfter ?? STALE_AFTER_DAYS[entry.type]);
+  if (!days || entry.status === 'superseded' || entry.status === 'archived') return false;
+  if (!entry.lastVerified) return true;
+  return Date.now() - Date.parse(entry.lastVerified) > days * 86_400_000;
+};
+
 const entries = walk(ROOT)
   .map((file) => {
     const rel = relative(ROOT, file).split(sep).join('/');
     const text = readFileSync(file, 'utf8');
     const fm = parseFrontMatter(text);
-    return {
+    const entry = {
       id: fm?.id || rel.replace(/\.md$/, '').replace(/\//g, '-'),
       type: fm?.type || inferType(rel),
       product: fm?.product || rel.split('/')[0],
@@ -84,9 +107,13 @@ const entries = walk(ROOT)
       scope: fm?.scope,
       summary: fm?.summary,
       related: fm?.related,
+      confidence: fm?.confidence,
+      supersedes: fm?.supersedes,
+      lastVerified: verifiedDate(fm?.last_verified) || verifiedDate(text.match(/^last_verified:[\s\S]*?date:\s*(\S+)/m)?.[1]),
       path: rel,
       hasFrontMatter: Boolean(fm),
     };
+    return { ...entry, stale: isStale(entry, fm?.stale_after) || undefined };
   })
   .sort((a, b) => a.path.localeCompare(b.path));
 
@@ -97,12 +124,14 @@ const index = {
   generatedAt: new Date().toISOString(),
   count: entries.length,
   missingFrontMatter: entries.filter((e) => !e.hasFrontMatter).map((e) => e.path),
+  stale: entries.filter((e) => e.stale).map((e) => e.id),
   products: byProduct,
   entries,
 };
 
 writeFileSync(join(ROOT, 'kb.index.json'), JSON.stringify(index, undefined, 2) + '\n');
 console.log(`kb.index.json: ${entries.length} docs across ${Object.keys(byProduct).length} product(s).`);
+if (index.stale.length) console.log(`  ${index.stale.length} stale (past last_verified + stale_after) — run /kb review.`);
 if (index.missingFrontMatter.length) {
   console.log(`  ${index.missingFrontMatter.length} without front-matter:`);
   index.missingFrontMatter.forEach((p) => console.log(`   - ${p}`));

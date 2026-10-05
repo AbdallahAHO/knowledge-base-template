@@ -31,6 +31,10 @@ sources:                         # PROVENANCE — verify, don't trust
   - file: path/to/source.ts
 last_verified: { commit: <sha>, date: <YYYY-MM-DD> }
 related: [<other-id>, ...]
+# optional
+confidence: high                 # high | medium | low — how well-sourced the claim set is
+supersedes: [<old-id>]           # this doc replaces those (they flip to status: superseded)
+stale_after: 30                  # days; overrides kb.config.json staleAfterDays for this doc
 ---
 ```
 
@@ -62,6 +66,31 @@ Diátaxis, MADR, C4, DDD ubiquitous language, RFC.)
 
 Skeletons for each type: [../doc-templates/_skeletons.md](../doc-templates/_skeletons.md).
 
+### Context types (vault layout)
+
+A KB about a **team or role** rather than a codebase — meetings, people, ongoing areas of work —
+uses `layout: "vault"` and adds these types. Code KBs never need them.
+
+| `type` | Purpose |
+|--------|---------|
+| `source` | Raw captured artifact (meeting notes, doc snapshot, calendar export). Immutable; provenance in front-matter (`origin`, `origin_id`, `url`, `captured`). |
+| `meeting` | Distilled meeting: decisions, action items, takeaways. Links to its `source` docs. |
+| `person` | One person: role, what they own, how to work with them, open threads. Living. |
+| `area` | Ongoing domain of responsibility (growth, onboarding). Living current-state + a terse `## Log`. |
+| `project` | Initiative with a lifecycle: `status: idea \| active \| paused \| done`. |
+| `journal` | Dated log (daily / weekly review). Point-in-time like `audit`. |
+
+Vault rules:
+- **Two layers.** `source` docs are never edited after capture; everything else is distilled from them
+  and cites them (`sources: [{ source: <id> }]`). A claim with no source gets `confidence: low`.
+- **Living docs** (`area`, `person`, `project`) are edited **in place** to stay current, and may carry a
+  short `## Log` of dated one-liners (`- 2026-10-05 — owner changed to X ([source](…))`). This is the
+  one exception to "no changelogs in evergreen docs": the log records *why the current state moved*.
+- **Staleness** is configured per type in `kb.config.json` → `staleAfterDays`; the index lists stale
+  docs and `/kb review` works through them.
+- Links are standard relative Markdown links so the vault reads the same in any editor, GitHub or an
+  Obsidian-style app — no wikilinks.
+
 ## Folder shape (per product section)
 
 ```
@@ -78,6 +107,17 @@ Skeletons for each type: [../doc-templates/_skeletons.md](../doc-templates/_skel
 ├── runbooks/*.md        # type: runbook
 └── audits/YYYY-MM-*.md  # type: audit (point-in-time)
 ```
+
+### Vault layout (role / team context)
+
+`kb.config.json` at the repo root with `layout: "vault"`, one product with `section: "."`, and
+`indexIgnore` for raw data folders. Flat, folder-per-type:
+
+```
+sources/  meetings/  people/  areas/  projects/  decisions/ (adr)  journal/  glossary.md
+```
+
+The index infers `type` from the top folder when front-matter omits it.
 
 ### In-repo layout (a single repo's own docs/)
 

@@ -274,3 +274,155 @@ related: []
 ## <YYYY-MM-DD>
 - <follow-up / open question>. (<pr/file>)
 ```
+
+---
+
+# Context types (`layout: vault`)
+
+## source  →  `sources/<origin>/YYYY-MM-DD-slug.md`  (immutable after capture)
+
+```md
+---
+id: src-<origin>-YYYY-MM-DD-<slug>
+type: source
+product: <product>
+status: current
+scope: [<topic>, ...]
+summary: <what this artifact is>.
+origin: <gemini-notes | wispr | calendar | notion | gdoc | import>
+origin_id: <stable id in the origin system>
+url: <link back>
+captured: <YYYY-MM-DD>
+last_verified: { date: <YYYY-MM-DD> }
+---
+
+<verbatim content>
+```
+
+---
+
+## meeting  →  `meetings/YYYY-MM-DD-slug.md`
+
+```md
+---
+id: mtg-YYYY-MM-DD-<slug>
+type: meeting
+product: <product>
+status: current
+scope: [<topic>, ...]
+summary: <one line — what was decided>.
+sources:
+  - source: <src-id>
+attendees: [<person-id>, ...]
+last_verified: { date: <YYYY-MM-DD> }
+related: [<area/project/person ids>]
+---
+
+# <Meeting title> — <date>
+
+## Decisions
+## Action items
+- [ ] <owner> — <action> (due <date>)
+## Takeaways
+```
+
+---
+
+## person  →  `people/first-last.md`  (living)
+
+```md
+---
+id: person-<first-last>
+type: person
+product: <product>
+status: current
+scope: [<team>, ...]
+summary: <role> — <what they own>.
+sources:
+  - source: <src-id>
+confidence: medium
+last_verified: { date: <YYYY-MM-DD> }
+related: []
+---
+
+# <Name>
+
+## Role & ownership
+## Working with them
+## Open threads
+
+## Log
+- <YYYY-MM-DD> — <what changed> ([source](…))
+```
+
+---
+
+## area  →  `areas/<area>/<topic>.md`  (living)
+
+```md
+---
+id: area-<area>-<topic>
+type: area
+product: <product>
+status: current
+scope: [<area>, ...]
+summary: <current state in one line>.
+sources:
+  - source: <src-id>
+confidence: medium
+last_verified: { date: <YYYY-MM-DD> }
+related: []
+---
+
+# <Topic>
+
+## Current state
+## Open questions
+
+## Log
+- <YYYY-MM-DD> — <what changed> ([source](…))
+```
+
+---
+
+## project  →  `projects/<slug>/README.md`  (living)
+
+```md
+---
+id: proj-<slug>
+type: project
+product: <product>
+status: idea            # idea | active | paused | done
+scope: [<area>, ...]
+summary: <goal in one line>.
+sources: []
+last_verified: { date: <YYYY-MM-DD> }
+related: []
+---
+
+# <Project>
+
+## Goal & success metric
+## Status
+## Next actions
+- [ ] <action>
+
+## Log
+```
+
+---
+
+## journal  →  `journal/YYYY/YYYY-MM-DD.md` or `journal/YYYY/YYYY-Www.md`
+
+```md
+---
+id: jrnl-YYYY-MM-DD
+type: journal
+product: <product>
+status: current
+summary: <the day/week in one line>.
+last_verified: { date: <YYYY-MM-DD> }
+---
+
+# <date>
+```
